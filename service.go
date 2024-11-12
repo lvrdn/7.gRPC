@@ -16,9 +16,6 @@ import (
 	status "google.golang.org/grpc/status"
 )
 
-// тут вы пишете код
-// обращаю ваше внимание - в этом задании запрещены глобальные переменные
-
 type Biz struct {
 	// some fields
 }
