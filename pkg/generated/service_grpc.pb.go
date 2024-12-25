@@ -2,9 +2,9 @@
 // versions:
 // - protoc-gen-go-grpc v1.2.0
 // - protoc             v5.28.2
-// source: service.proto
+// source: api/service.proto
 
-package main
+package generated
 
 import (
 	context "context"
@@ -99,15 +99,14 @@ func (x *adminStatisticsClient) Recv() (*Stat, error) {
 }
 
 // AdminServer is the server API for Admin service.
-// All implementations must embed UnimplementedAdminServer
+// All implementations should embed UnimplementedAdminServer
 // for forward compatibility
 type AdminServer interface {
 	Logging(*Nothing, Admin_LoggingServer) error
 	Statistics(*StatInterval, Admin_StatisticsServer) error
-	mustEmbedUnimplementedAdminServer()
 }
 
-// UnimplementedAdminServer must be embedded to have forward compatible implementations.
+// UnimplementedAdminServer should be embedded to have forward compatible implementations.
 type UnimplementedAdminServer struct {
 }
 
@@ -117,7 +116,6 @@ func (UnimplementedAdminServer) Logging(*Nothing, Admin_LoggingServer) error {
 func (UnimplementedAdminServer) Statistics(*StatInterval, Admin_StatisticsServer) error {
 	return status.Errorf(codes.Unimplemented, "method Statistics not implemented")
 }
-func (UnimplementedAdminServer) mustEmbedUnimplementedAdminServer() {}
 
 // UnsafeAdminServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to AdminServer will
@@ -191,7 +189,7 @@ var Admin_ServiceDesc = grpc.ServiceDesc{
 			ServerStreams: true,
 		},
 	},
-	Metadata: "service.proto",
+	Metadata: "api/service.proto",
 }
 
 // BizClient is the client API for Biz service.
@@ -239,16 +237,15 @@ func (c *bizClient) Test(ctx context.Context, in *Nothing, opts ...grpc.CallOpti
 }
 
 // BizServer is the server API for Biz service.
-// All implementations must embed UnimplementedBizServer
+// All implementations should embed UnimplementedBizServer
 // for forward compatibility
 type BizServer interface {
 	Check(context.Context, *Nothing) (*Nothing, error)
 	Add(context.Context, *Nothing) (*Nothing, error)
 	Test(context.Context, *Nothing) (*Nothing, error)
-	mustEmbedUnimplementedBizServer()
 }
 
-// UnimplementedBizServer must be embedded to have forward compatible implementations.
+// UnimplementedBizServer should be embedded to have forward compatible implementations.
 type UnimplementedBizServer struct {
 }
 
@@ -261,7 +258,6 @@ func (UnimplementedBizServer) Add(context.Context, *Nothing) (*Nothing, error) {
 func (UnimplementedBizServer) Test(context.Context, *Nothing) (*Nothing, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Test not implemented")
 }
-func (UnimplementedBizServer) mustEmbedUnimplementedBizServer() {}
 
 // UnsafeBizServer may be embedded to opt out of forward compatibility for this service.
 // Use of this interface is not recommended, as added methods to BizServer will
@@ -349,5 +345,5 @@ var Biz_ServiceDesc = grpc.ServiceDesc{
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
-	Metadata: "service.proto",
+	Metadata: "api/service.proto",
 }

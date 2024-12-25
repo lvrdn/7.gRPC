@@ -1,7 +1,9 @@
-package main
+package app_test
 
 import (
 	"context"
+	gen "data/pkg/generated"
+	service "data/pkg/service"
 	"fmt"
 	"io"
 	"log"
@@ -72,9 +74,9 @@ func getConsumerCtxWithCancel(consumerName string) (context.Context, context.Can
 // старт-стоп сервера
 func TestServerStartStop(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
 	if err != nil {
-		t.Fatalf("cant start server initial: %v", err)
+		t.Fatalf("cant start service initial: %v", err)
 	}
 	wait(1)
 	finish() // при вызове этой функции ваш сервер должен остановиться и освободить порт
@@ -82,9 +84,9 @@ func TestServerStartStop(t *testing.T) {
 
 	// теперь проверим что вы освободили порт и мы можем стартовать сервер ещё раз
 	ctx, finish = context.WithCancel(context.Background())
-	err = StartMyMicroservice(ctx, listenAddr, ACLData)
+	err = service.StartMyMicroservice(ctx, listenAddr, ACLData)
 	if err != nil {
-		t.Fatalf("cant start server again: %v", err)
+		t.Fatalf("cant start service again: %v", err)
 	}
 	wait(1)
 	finish()
@@ -115,7 +117,7 @@ func TestServerLeak(t *testing.T) {
 // ACL (права на методы доступа) парсится корректно
 func TestACLParseError(t *testing.T) {
 	// finish'а тут нет потому что стартовать у вас ничего не должно если не получилось распаковать ACL
-	err := StartMyMicroservice(context.Background(), listenAddr, "{.;")
+	err := service.StartMyMicroservice(context.Background(), listenAddr, "{.;")
 	if err == nil {
 		t.Fatalf("expacted error on bad acl json, have nil")
 	}
@@ -125,9 +127,9 @@ func TestACLParseError(t *testing.T) {
 func TestACL(t *testing.T) {
 	wait(1)
 	ctx, finish := context.WithCancel(context.Background())
-	err := StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
 	if err != nil {
-		t.Fatalf("cant start server initial: %v", err)
+		t.Fatalf("cant start service initial: %v", err)
 	}
 	wait(1)
 	defer func() {
@@ -138,15 +140,15 @@ func TestACL(t *testing.T) {
 	conn := getGrpcConn(t)
 	defer conn.Close()
 
-	biz := NewBizClient(conn)
-	adm := NewAdminClient(conn)
+	biz := gen.NewBizClient(conn)
+	adm := gen.NewAdminClient(conn)
 
 	for idx, ctx := range []context.Context{
 		context.Background(),       // нет поля для ACL
 		getConsumerCtx("unknown"),  // поле есть, неизвестный консюмер
 		getConsumerCtx("biz_user"), // поле есть, нет доступа
 	} {
-		_, err = biz.Test(ctx, &Nothing{})
+		_, err = biz.Test(ctx, &gen.Nothing{})
 		if err == nil {
 			t.Fatalf("[%d] ACL fail: expected err on disallowed method", idx)
 		} else if code := grpc.Code(err); code != codes.Unauthenticated {
@@ -155,21 +157,24 @@ func TestACL(t *testing.T) {
 	}
 
 	// есть доступ
-	_, err = biz.Check(getConsumerCtx("biz_user"), &Nothing{})
+	_, err = biz.Check(getConsumerCtx("biz_user"), &gen.Nothing{})
 	if err != nil {
 		t.Fatalf("ACL fail: unexpected error: %v", err)
 	}
-	_, err = biz.Check(getConsumerCtx("biz_admin"), &Nothing{})
+	_, err = biz.Check(getConsumerCtx("biz_admin"), &gen.Nothing{})
 	if err != nil {
 		t.Fatalf("ACL fail: unexpected error: %v", err)
 	}
-	_, err = biz.Test(getConsumerCtx("biz_admin"), &Nothing{})
+	_, err = biz.Test(getConsumerCtx("biz_admin"), &gen.Nothing{})
 	if err != nil {
 		t.Fatalf("ACL fail: unexpected error: %v", err)
 	}
 
 	// ACL на методах, которые возвращают поток данных
-	logger, err := adm.Logging(getConsumerCtx("unknown"), &Nothing{})
+	logger, err := adm.Logging(getConsumerCtx("unknown"), &gen.Nothing{})
+	if err != nil {
+		t.Fatalf("get consumer ctx error: [%s]", err.Error())
+	}
 	_, err = logger.Recv()
 	if err == nil {
 		t.Fatalf("ACL fail: expected err on disallowed method")
@@ -180,9 +185,9 @@ func TestACL(t *testing.T) {
 
 func TestLogging(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
 	if err != nil {
-		t.Fatalf("cant start server initial: %v", err)
+		t.Fatalf("cant start service initial: %v", err)
 	}
 	wait(1)
 	defer func() {
@@ -193,16 +198,23 @@ func TestLogging(t *testing.T) {
 	conn := getGrpcConn(t)
 	defer conn.Close()
 
-	biz := NewBizClient(conn)
-	adm := NewAdminClient(conn)
+	biz := gen.NewBizClient(conn)
+	adm := gen.NewAdminClient(conn)
 
-	logStream1, err := adm.Logging(getConsumerCtx("logger1"), &Nothing{})
+	logStream1, err := adm.Logging(getConsumerCtx("logger1"), &gen.Nothing{})
+	if err != nil {
+		t.Fatalf("logger1 error: [%s]", err.Error())
+	}
+
 	time.Sleep(1 * time.Millisecond)
 
-	logStream2, err := adm.Logging(getConsumerCtx("logger2"), &Nothing{})
+	logStream2, err := adm.Logging(getConsumerCtx("logger2"), &gen.Nothing{})
+	if err != nil {
+		t.Fatalf("logger2 error: [%s]", err.Error())
+	}
 
-	logData1 := []*Event{}
-	logData2 := []*Event{}
+	logData1 := []*gen.Event{}
+	logData2 := []*gen.Event{}
 
 	wait(1)
 
@@ -235,7 +247,7 @@ func TestLogging(t *testing.T) {
 			// это грязный хак
 			// protobuf добавляет к структуре свои поля, которвые не видны при приведении к строке и при reflect.DeepEqual
 			// поэтому берем не оригинал сообщения, а только нужные значения
-			logData1 = append(logData1, &Event{Consumer: evt.Consumer, Method: evt.Method})
+			logData1 = append(logData1, &gen.Event{Consumer: evt.Consumer, Method: evt.Method})
 		}
 	}()
 	go func() {
@@ -254,28 +266,28 @@ func TestLogging(t *testing.T) {
 			// это грязный хак
 			// protobuf добавляет к структуре свои поля, которвые не видны при приведении к строке и при reflect.DeepEqual
 			// поэтому берем не оригинал сообщения, а только нужные значения
-			logData2 = append(logData2, &Event{Consumer: evt.Consumer, Method: evt.Method})
+			logData2 = append(logData2, &gen.Event{Consumer: evt.Consumer, Method: evt.Method})
 		}
 	}()
 
-	biz.Check(getConsumerCtx("biz_user"), &Nothing{})
+	biz.Check(getConsumerCtx("biz_user"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
 
-	biz.Check(getConsumerCtx("biz_admin"), &Nothing{})
+	biz.Check(getConsumerCtx("biz_admin"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
 
-	biz.Test(getConsumerCtx("biz_admin"), &Nothing{})
+	biz.Test(getConsumerCtx("biz_admin"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
 
 	wg.Wait()
 
-	expectedLogData1 := []*Event{
+	expectedLogData1 := []*gen.Event{
 		{Consumer: "logger2", Method: "/main.Admin/Logging"},
 		{Consumer: "biz_user", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Test"},
 	}
-	expectedLogData2 := []*Event{
+	expectedLogData2 := []*gen.Event{
 		{Consumer: "biz_user", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Test"},
@@ -291,9 +303,9 @@ func TestLogging(t *testing.T) {
 
 func TestStat(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
 	if err != nil {
-		t.Fatalf("cant start server initial: %v", err)
+		t.Fatalf("cant start service initial: %v", err)
 	}
 	wait(1)
 	defer func() {
@@ -304,16 +316,23 @@ func TestStat(t *testing.T) {
 	conn := getGrpcConn(t)
 	defer conn.Close()
 
-	biz := NewBizClient(conn)
-	adm := NewAdminClient(conn)
+	biz := gen.NewBizClient(conn)
+	adm := gen.NewAdminClient(conn)
 
-	statStream1, err := adm.Statistics(getConsumerCtx("stat1"), &StatInterval{IntervalSeconds: 2})
+	statStream1, err := adm.Statistics(getConsumerCtx("stat1"), &gen.StatInterval{IntervalSeconds: 2})
 	wait(1)
-	statStream2, err := adm.Statistics(getConsumerCtx("stat2"), &StatInterval{IntervalSeconds: 3})
+	if err != nil {
+		t.Fatalf("stat1 error: [%s]", err.Error())
+	}
+
+	statStream2, err := adm.Statistics(getConsumerCtx("stat2"), &gen.StatInterval{IntervalSeconds: 3})
+	if err != nil {
+		t.Fatalf("stat2 error: [%s]", err.Error())
+	}
 
 	mu := &sync.Mutex{}
-	stat1 := &Stat{}
-	stat2 := &Stat{}
+	stat1 := &gen.Stat{}
+	stat2 := &gen.Stat{}
 
 	wg := &sync.WaitGroup{}
 	wg.Add(2)
@@ -331,7 +350,7 @@ func TestStat(t *testing.T) {
 			// это грязный хак
 			// protobuf добавляет к структуре свои поля, которвые не видны при приведении к строке и при reflect.DeepEqual
 			// поэтому берем не оригинал сообщения, а только нужные значения
-			stat1 = &Stat{
+			stat1 = &gen.Stat{
 				ByMethod:   stat.ByMethod,
 				ByConsumer: stat.ByConsumer,
 			}
@@ -352,7 +371,7 @@ func TestStat(t *testing.T) {
 			// это грязный хак
 			// protobuf добавляет к структуре свои поля, которвые не видны при приведении к строке и при reflect.DeepEqual
 			// поэтому берем не оригинал сообщения, а только нужные значения
-			stat2 = &Stat{
+			stat2 = &gen.Stat{
 				ByMethod:   stat.ByMethod,
 				ByConsumer: stat.ByConsumer,
 			}
@@ -362,13 +381,13 @@ func TestStat(t *testing.T) {
 
 	wait(1)
 
-	biz.Check(getConsumerCtx("biz_user"), &Nothing{})
-	biz.Add(getConsumerCtx("biz_user"), &Nothing{})
-	biz.Test(getConsumerCtx("biz_admin"), &Nothing{})
+	biz.Check(getConsumerCtx("biz_user"), &gen.Nothing{})
+	biz.Add(getConsumerCtx("biz_user"), &gen.Nothing{})
+	biz.Test(getConsumerCtx("biz_admin"), &gen.Nothing{})
 
 	wait(200) // 2 sec
 
-	expectedStat1 := &Stat{
+	expectedStat1 := &gen.Stat{
 		ByMethod: map[string]uint64{
 			"/main.Biz/Check":        1,
 			"/main.Biz/Add":          1,
@@ -388,11 +407,11 @@ func TestStat(t *testing.T) {
 	}
 	mu.Unlock()
 
-	biz.Add(getConsumerCtx("biz_admin"), &Nothing{})
+	biz.Add(getConsumerCtx("biz_admin"), &gen.Nothing{})
 
 	wait(220) // 2+ sec
 
-	expectedStat1 = &Stat{
+	expectedStat1 = &gen.Stat{
 		Timestamp: 0,
 		ByMethod: map[string]uint64{
 			"/main.Biz/Add": 1,
@@ -401,7 +420,7 @@ func TestStat(t *testing.T) {
 			"biz_admin": 1,
 		},
 	}
-	expectedStat2 := &Stat{
+	expectedStat2 := &gen.Stat{
 		Timestamp: 0,
 		ByMethod: map[string]uint64{
 			"/main.Biz/Check": 1,
@@ -430,9 +449,9 @@ func TestStat(t *testing.T) {
 // see comments marked CHANGED
 func TestWorkAfterDisconnect(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
 	if err != nil {
-		t.Fatalf("cant start server initial: %v", err)
+		t.Fatalf("cant start service initial: %v", err)
 	}
 	wait(1)
 	defer func() {
@@ -443,17 +462,23 @@ func TestWorkAfterDisconnect(t *testing.T) {
 	conn := getGrpcConn(t)
 	defer conn.Close()
 
-	biz := NewBizClient(conn)
-	adm := NewAdminClient(conn)
+	biz := gen.NewBizClient(conn)
+	adm := gen.NewAdminClient(conn)
 
 	ctx1, cancel1 := getConsumerCtxWithCancel("logger1")
-	logStream1, err := adm.Logging(ctx1, &Nothing{})
+	logStream1, err := adm.Logging(ctx1, &gen.Nothing{})
+	if err != nil {
+		t.Fatalf("logger1 error: [%s]", err.Error())
+	}
 	time.Sleep(1 * time.Millisecond)
 
-	logStream2, err := adm.Logging(getConsumerCtx("logger2"), &Nothing{})
+	logStream2, err := adm.Logging(getConsumerCtx("logger2"), &gen.Nothing{})
+	if err != nil {
+		t.Fatalf("logger1 error: [%s]", err.Error())
+	}
 
-	logData1 := []*Event{}
-	logData2 := []*Event{}
+	logData1 := []*gen.Event{}
+	logData2 := []*gen.Event{}
 
 	wait(1)
 
@@ -486,7 +511,7 @@ func TestWorkAfterDisconnect(t *testing.T) {
 			// это грязный хак
 			// protobuf добавляет к структуре свои поля, которвые не видны при приведении к строке и при reflect.DeepEqual
 			// поэтому берем не оригинал сообщения, а только нужные значения
-			logData1 = append(logData1, &Event{Consumer: evt.Consumer, Method: evt.Method})
+			logData1 = append(logData1, &gen.Event{Consumer: evt.Consumer, Method: evt.Method})
 		}
 	}()
 	go func() {
@@ -506,17 +531,17 @@ func TestWorkAfterDisconnect(t *testing.T) {
 			// это грязный хак
 			// protobuf добавляет к структуре свои поля, которвые не видны при приведении к строке и при reflect.DeepEqual
 			// поэтому берем не оригинал сообщения, а только нужные значения
-			logData2 = append(logData2, &Event{Consumer: evt.Consumer, Method: evt.Method})
+			logData2 = append(logData2, &gen.Event{Consumer: evt.Consumer, Method: evt.Method})
 		}
 	}()
 
-	biz.Check(getConsumerCtx("biz_user"), &Nothing{})
+	biz.Check(getConsumerCtx("biz_user"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
 
-	biz.Check(getConsumerCtx("biz_admin"), &Nothing{})
+	biz.Check(getConsumerCtx("biz_admin"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
 
-	biz.Test(getConsumerCtx("biz_admin"), &Nothing{})
+	biz.Test(getConsumerCtx("biz_admin"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
 
 	// CHANGED
@@ -524,21 +549,21 @@ func TestWorkAfterDisconnect(t *testing.T) {
 	cancel1()
 	wait(12)
 
-	biz.Add(getConsumerCtx("after_disconnect"), &Nothing{})
+	biz.Add(getConsumerCtx("after_disconnect"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
-	biz.Add(getConsumerCtx("after_disconnect"), &Nothing{})
+	biz.Add(getConsumerCtx("after_disconnect"), &gen.Nothing{})
 	time.Sleep(2 * time.Millisecond)
 	// END CHANGED
 
 	wg.Wait()
 
-	expectedLogData1 := []*Event{
+	expectedLogData1 := []*gen.Event{
 		{Consumer: "logger2", Method: "/main.Admin/Logging"},
 		{Consumer: "biz_user", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Test"},
 	}
-	expectedLogData2 := []*Event{
+	expectedLogData2 := []*gen.Event{
 		{Consumer: "biz_user", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Check"},
 		{Consumer: "biz_admin", Method: "/main.Biz/Test"},
