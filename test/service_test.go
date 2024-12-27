@@ -1,9 +1,9 @@
 package app_test
 
 import (
+	gen "app/pkg/generated"
+	service "app/pkg/service"
 	"context"
-	gen "data/pkg/generated"
-	service "data/pkg/service"
 	"fmt"
 	"io"
 	"log"
@@ -74,7 +74,7 @@ func getConsumerCtxWithCancel(consumerName string) (context.Context, context.Can
 // старт-стоп сервера
 func TestServerStartStop(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData, nil)
 	if err != nil {
 		t.Fatalf("cant start service initial: %v", err)
 	}
@@ -84,7 +84,7 @@ func TestServerStartStop(t *testing.T) {
 
 	// теперь проверим что вы освободили порт и мы можем стартовать сервер ещё раз
 	ctx, finish = context.WithCancel(context.Background())
-	err = service.StartMyMicroservice(ctx, listenAddr, ACLData)
+	err = service.StartMyMicroservice(ctx, listenAddr, ACLData, nil)
 	if err != nil {
 		t.Fatalf("cant start service again: %v", err)
 	}
@@ -117,7 +117,7 @@ func TestServerLeak(t *testing.T) {
 // ACL (права на методы доступа) парсится корректно
 func TestACLParseError(t *testing.T) {
 	// finish'а тут нет потому что стартовать у вас ничего не должно если не получилось распаковать ACL
-	err := service.StartMyMicroservice(context.Background(), listenAddr, "{.;")
+	err := service.StartMyMicroservice(context.Background(), listenAddr, "{.;", nil)
 	if err == nil {
 		t.Fatalf("expacted error on bad acl json, have nil")
 	}
@@ -127,7 +127,7 @@ func TestACLParseError(t *testing.T) {
 func TestACL(t *testing.T) {
 	wait(1)
 	ctx, finish := context.WithCancel(context.Background())
-	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData, nil)
 	if err != nil {
 		t.Fatalf("cant start service initial: %v", err)
 	}
@@ -185,7 +185,7 @@ func TestACL(t *testing.T) {
 
 func TestLogging(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData, nil)
 	if err != nil {
 		t.Fatalf("cant start service initial: %v", err)
 	}
@@ -303,7 +303,7 @@ func TestLogging(t *testing.T) {
 
 func TestStat(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData, nil)
 	if err != nil {
 		t.Fatalf("cant start service initial: %v", err)
 	}
@@ -449,7 +449,7 @@ func TestStat(t *testing.T) {
 // see comments marked CHANGED
 func TestWorkAfterDisconnect(t *testing.T) {
 	ctx, finish := context.WithCancel(context.Background())
-	err := service.StartMyMicroservice(ctx, listenAddr, ACLData)
+	err := service.StartMyMicroservice(ctx, listenAddr, ACLData, nil)
 	if err != nil {
 		t.Fatalf("cant start service initial: %v", err)
 	}

@@ -1,7 +1,7 @@
 package server
 
 import (
-	gen "data/pkg/generated"
+	gen "app/pkg/generated"
 	"strings"
 	"sync"
 	"time"

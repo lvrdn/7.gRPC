@@ -9,3 +9,6 @@ gen:
 .PHONY: test
 test:
 	go test ./test -v -race
+
+run:
+	go run ./cmd/main.go

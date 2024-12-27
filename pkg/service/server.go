@@ -1,7 +1,8 @@
 package server
 
 import (
-	gen "data/pkg/generated"
+	gen "app/pkg/generated"
+	"log"
 	"net"
 	"sync"
 
@@ -9,8 +10,8 @@ import (
 	grpc "google.golang.org/grpc"
 )
 
-func StartMyMicroservice(ctx context.Context, listenAddr string, data string) error {
-
+func StartMyMicroservice(ctx context.Context, listenAddr string, data string, wg *sync.WaitGroup) error {
+	defer log.Println("grpc server started")
 	biz := &Biz{}
 
 	admin := &Admin{
@@ -44,13 +45,13 @@ func StartMyMicroservice(ctx context.Context, listenAddr string, data string) er
 	gen.RegisterBizServer(server, biz)
 
 	lis, err := net.Listen("tcp", listenAddr)
-
 	if err != nil {
 		return err
 	}
 
 	go func() {
-
+		defer wg.Done()
+		defer log.Println("grpc server stopped")
 		<-ctx.Done()
 		server.GracefulStop()
 	}()
